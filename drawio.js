@@ -4,12 +4,9 @@
 
 const pleaseSelectShape = '<p><i>Select a shape.</i></p>';
 
-const attribute = 'ATTRIBUTES';
+const attributesName = 'ATTRIBUTES';
 
-const allProperties = [
-    // default
-    'ZONE',
-    // other
+const attributes = [
     'ELEMENT',
     'PROCESS',
     'DATAFLOW',
@@ -65,15 +62,15 @@ const allProperties = [
     'AUDITING'
 ];
 
-const defaultCheckedValue = [
+const notAtAttributes = [
+    'ZONE'
+];
+
+const defaultValues = [
     'ZONE'
 ];
 
 const numberInput = [
-    'ZONE'
-];
-
-const notAtAtAttribute = [
     'ZONE'
 ];
 
@@ -88,32 +85,57 @@ const getPropertyTemplate = (nodeName, nodeValue, inputType, dontShowDelete) => 
                 <input id="${nodeName}-input" class="property-input" value="${nodeValue}" type="${inputType}" style="width: 100%; border:1px solid black;" />
             </div>
             <div id="${nodeName}-button-container" style="margin-left:5px;">          
-                <button id="${nodeName}-button" class="property-delete" style="border-radius:50%; border:1px solid rgb(184, 84, 80); color:rgb(184, 84, 80); background-color:rgb(248, 206, 204); ${dontShowDelete ? "display: none;" : ""}"> x </button>
+                <button id="${nodeName}-button" class="property-delete" style="border-radius:50%; border:1px solid rgb(184, 84, 80); color:rgb(184, 84, 80); background-color:rgb(248, 206, 204); ${dontShowDelete ? "visibility: hidden;" : ""}"> x </button>
             </div>
         </div>`
     );
 }
 
-// //get html template for add new property
-// const getNewPropertyTemplate = (options, showDelete) => {
-//     return (
-//         `<div id="new-property-container" style="display:flex; align-items:center; justify-items:center;">
-//             <div style="margin-right:5px;">
-//                 <select id="new-select" style="width:100%">
-//                     ${options}
-//                 </select>
-//             </div>
-//             <div style="margin-left:5px;">
-//                 <button id="add-button" style="border-radius:0; border:1px solid rgb(215, 155, 0); color:rgb(215, 155, 0); background-color:rgb(255, 242, 204); padding:5px;">Add</button>
-//             </div>
-//         </div>`
-//     );
-// }
+// get html template for add new property
+const getNewPropertyTemplate = () => {
+    return (
+        `<div id="custom-property-container" style="width:100%; display:flex; align-items:center; justify-content:flex-start; justify-items:center; align-content:center; margin:5px 0;">
+            <style>
+                .custom-input[type="text"] {
+                    width: 100%;
+                    flex: 1;
+                    margin: 0 5px;
+                    border: 1px solid black;
+                    outline: none;
+                }
+
+                .custom-input[type="text"]:hover {
+                    outline: none;
+                }
+  
+                .custom-input[type="text"]:focus {
+                    outline: none;
+                }
+
+                #add-custom-button {
+                    border-radius: 0;
+                    border: 1px solid rgb(215, 155, 0);
+                    color: rgb(215, 155, 0);
+                    background-color: rgb(255, 242, 204);
+                    padding: 5px;
+                    margin-left: 5px;
+                }
+            </style>
+
+            <input id="custom-name-input" class="custom-input" type="text" />
+
+            <input id="custom-value-input" class="custom-input" type="text" />
+
+            <button id="add-custom-button">Add</button>
+        </div>`
+    );
+}
 
 // get html wizzard template
 const getWizzardTemplate = (checkboxes) => {
     return (
         `<div id="wizzard-template" style="margin-bottom:5px;">
+            <p style="margin-bottom:5px; text-align:center;"><strong>Please select value from attributes</strong></p>
             <div style="margin-bottom:5px;">
                 ${checkboxes}
             </div>
@@ -128,7 +150,7 @@ const getWizzardTemplate = (checkboxes) => {
 const getCheckBoxTemplate = (nodeName, isChecked) => {
     return (
         `<div style="padding-bottom: 5px; padding-top: 5px; display:flex; align-items:center;">
-            <input id="${nodeName}-checkbox" class="wizzard-checkboxes" type="checkbox" ${isChecked ? "checked" : ""} value="${nodeName}" style="margin-right:7px;" />
+            <input id="${nodeName}-checkbox" class="wizzard-checkboxes" type="checkbox" ${isChecked ? "checked disabled" : ""} value="${nodeName}" style="margin-right:7px;" />
             <label>${nodeName}</label>
         </div>`
     );
@@ -136,15 +158,15 @@ const getCheckBoxTemplate = (nodeName, isChecked) => {
 
 const getMultiSelectWithSearchTemplate = (tags, options, placeholder) => {
     return (
-        `<div id="multiselect-container">
+        `<div id="multiselect-container" style="margin-bottom: 10px;">
             <style>
                 #multiselect-tags-container {
                     border: 1px solid black;
                     border-bottom: 1px solid white;
-                    max-height: 200px;
+                    max-height: 170px;
                     overflow: scroll;
                     overflow-x: hidden;
-                    padding: 3px;
+                    padding: 2px;
                 }
   
                 #multiselect-dropdown-container {
@@ -185,6 +207,7 @@ const getMultiSelectWithSearchTemplate = (tags, options, placeholder) => {
                     width: -webkit-fill-available;
                     border: none;
                     margin: 4px 5px;
+                    margin-top: 0;
                 }
   
                 #multiselect-search-input:hover {
@@ -275,7 +298,7 @@ Draw.loadPlugin(function (ui) {
     div.style.minWidth = '200px';
     div.style.top = '40px';
     div.style.right = '20px';
-    div.style.maxHeight = "330px";
+    div.style.maxHeight = "400px";
     div.style.overflow = "scroll";
     div.style.overflowX = "hidden";
 
@@ -294,19 +317,10 @@ Draw.loadPlugin(function (ui) {
     var highlight = new mxCellHighlight(graph, '#00ff00', 8);
 
     /**
-     * Create Node from HTML string.
-     */
-    const createElementFromHTML = (template) => {
-        var temp = document.createElement('div');
-        temp.innerHTML = template;
-        return temp.firstChild;
-    }
-
-    /**
      * Parse attributes.
      */
     const parseAttribute = (cell) => {
-        var attr = cell.value.attributes.getNamedItem(attribute.toLowerCase());
+        var attr = cell.value.attributes.getNamedItem(attributesName.toLowerCase());
 
         if (attr && attr.nodeValue !== "" && attr.nodeValue !== " ") {
             return attr.nodeValue.toUpperCase().split(',');
@@ -316,10 +330,368 @@ Draw.loadPlugin(function (ui) {
     }
 
     /**
-    * Convert attribute from list to string.
+    * Convert attributesName from list to string.
     */
     const convertToString = (list) => {
         return list.join(",");
+    }
+
+    /**
+     * Return common view with events
+     */
+    const getCommonView = (cell) => {
+        var ignored = ['label', 'tooltip', 'placeholders', attributesName.toLowerCase()];
+        var label = graph.sanitizeHtml(graph.getLabel(cell));
+
+        // Add header (shape label)
+        if (label != null && label.length > 0) {
+            div.innerHTML = '<h2>' + label + '</h2>';
+        }
+        else {
+            div.innerHTML = '';
+        }
+
+        // Show value stored in attributes
+        let attributesList = parseAttribute(cell);
+        let tagTemplates = attributesList.filter(x => !notAtAttributes.includes(x))
+            .map(x => {
+                x = x.toUpperCase();
+                return getCustomTagTemplate(x);
+            }).join(" ");
+
+        let optionTemplates = attributes.map(x => {
+            x = x.toUpperCase();
+            return getCustomOptionTemplate(x, attributesList.includes(x));
+        }).join(" ");
+
+        let selectTemplate = getMultiSelectWithSearchTemplate(tagTemplates, optionTemplates, attributesList.length === 0 ? 'Please select some attributes' : undefined);
+        div.innerHTML += selectTemplate;
+
+        // Show value not stored in attributes
+        let propetiesContainer = document.createElement('div');
+        propetiesContainer.id = 'other-properties-container'
+        propetiesContainer.style.maxHeight = '90px';
+        propetiesContainer.style.overflow = "scroll";
+        propetiesContainer.style.overflowX = "hidden";
+
+        div.appendChild(propetiesContainer)
+
+        let attrs = cell.value.attributes;
+
+        for (var i = 0; i < attrs.length; i++) {
+            if (mxUtils.indexOf(ignored, attrs[i].nodeName) < 0 && attrs[i].nodeValue.length > 0) {
+                let nodeName = attrs[i].nodeName.toUpperCase();
+                propetiesContainer.innerHTML += getPropertyTemplate(nodeName, attrs[i].nodeValue, numberInput.includes(nodeName) ? 'number' : 'text', defaultValues.includes(nodeName));
+            }
+        }
+
+        // Add custom properties
+        div.innerHTML += getNewPropertyTemplate();
+
+        //Add input event listeners to custom name input 
+        let nameInput = document.getElementById("custom-name-input");
+        nameInput.addEventListener('input', (event) => {
+            let value = event.target.value;
+
+            if (value && value != "" && value.trim() != "") {
+                let localNameInput = document.getElementById("custom-name-input");
+                localNameInput.style.borderColor = "black";
+            }
+        });
+
+        //Add click event listeners to add new property button
+        let newPropertyAddButton = document.getElementById("add-custom-button");
+
+        newPropertyAddButton.addEventListener('click', () => {
+            let newPropertyName = document.getElementById("custom-name-input")?.value;
+            let newPropertyValue = document.getElementById("custom-value-input")?.value;
+
+            if (newPropertyName && newPropertyName != "" && newPropertyName.trim() != "") {
+                let newAttr = document.createAttribute(newPropertyName);
+                newAttr.textContent = newPropertyValue || " ";
+                cell.value.attributes.setNamedItem(newAttr);
+
+                //Add new property node to DOM
+                let newTemplate = getPropertyTemplate(newPropertyName.toUpperCase(), newPropertyValue, "text", false);
+                let container = document.getElementById('other-properties-container');
+                container.innerHTML += newTemplate;
+
+                // Cleare inputs
+                let localNameInput = document.getElementById("custom-name-input");
+                if (localNameInput) {
+                    localNameInput.value = "";
+                }
+                let localValueInput = document.getElementById("custom-value-input");
+                if (localValueInput) {
+                    localValueInput.value = "";
+                }
+
+                //Add change event listeners to input
+                let input = document.getElementById(`${newPropertyName.toUpperCase()}-input`);
+                input.addEventListener('change', (event) => {
+                    let name = event.target.id.split('-')[0].toLowerCase();
+
+                    let newAttr = cell.value.attributes.getNamedItem(name) || cell.value.attributes.getNamedItem(name.toUpperCase());
+                    newAttr.nodeValue = event.target.value;
+                    cell.value.attributes.setNamedItem(newAttr);
+
+                    this.value = event.target.value
+                });
+
+                // Add click event listeners to delete button
+                let button = document.getElementById(`${newPropertyName.toUpperCase()}-button`);
+                button.addEventListener("click", (event) => {
+                    let name = event.target.id.split('-')[0];
+
+                    if (!notAtAttributes.includes(name)) {
+                        let newAttr = cell.value.attributes.getNamedItem(attributesName.toLowerCase());
+                        let attributesList = parseAttribute(cell);
+
+                        if (attributesList.includes(name)) {
+                            attributesList = attributesList.filter(x => x.toUpperCase() != name.toUpperCase());
+
+                            newAttr.nodeValue = convertToString(attributesList);
+                            cell.value.attributes.setNamedItem(newAttr);
+                        }
+                        else {
+                            cell.value.attributes.removeNamedItem(name.toLowerCase());
+                        }
+                    }
+                    else {
+                        cell.value.attributes.removeNamedItem(name.toLowerCase());
+                    }
+
+                    let otherContainerLocal = document.getElementById('other-properties-container');
+                    let newPropertyContainer = document.getElementById(`${name}-container`);
+                    otherContainerLocal.removeChild(newPropertyContainer);
+                });
+            }
+            else {
+                let localNameInput = document.getElementById("custom-name-input");
+                if (localNameInput) {
+                    localNameInput.style.borderColor = "red";
+                }
+            }
+        });
+
+        //Add change event listeners to inputs
+        let inputs = document.getElementsByClassName('property-input');
+
+        for (let i = 0; i < inputs.length; i++) {
+            inputs[i].addEventListener('change', (event) => {
+                let name = event.target.id.split('-')[0].toLowerCase();
+
+                let newAttr = cell.value.attributes.getNamedItem(name) || cell.value.attributes.getNamedItem(name.toUpperCase());
+                newAttr.nodeValue = event.target.value;
+                cell.value.attributes.setNamedItem(newAttr);
+
+                this.value = event.target.value
+            });
+        }
+
+        // Add click event listeners to delete buttons
+        let buttons = document.getElementsByClassName('property-delete');
+
+        for (let i = 0; i < buttons.length; i++) {
+            buttons[i].addEventListener("click", (event) => {
+                let name = event.target.id.split('-')[0];
+
+                if (!notAtAttributes.includes(name)) {
+                    let newAttr = cell.value.attributes.getNamedItem(attributesName.toLowerCase());
+                    let attributesList = parseAttribute(cell);
+
+                    if (attributesList.includes(name)) {
+                        attributesList = attributesList.filter(x => x.toUpperCase() != name.toUpperCase());
+
+                        newAttr.nodeValue = convertToString(attributesList);
+                        cell.value.attributes.setNamedItem(newAttr);
+                    }
+                    else {
+                        cell.value.attributes.removeNamedItem(name.toLowerCase());
+                    }
+                }
+                else {
+                    cell.value.attributes.removeNamedItem(name.toLowerCase());
+                }
+
+                let otherContainerLocal = document.getElementById('other-properties-container');
+                let newPropertyContainer = document.getElementById(`${name}-container`);
+                otherContainerLocal.removeChild(newPropertyContainer);
+            });
+        }
+
+        // Add focus event listeners to multiselect input
+        let multiSelectInput = document.getElementById('multiselect-search-input');
+        multiSelectInput.addEventListener("focus", () => {
+            let optionsContainer = document.getElementById("multiselect-options-container");
+            optionsContainer.style.display = 'block';
+        });
+
+        // Add blur event listeners to multiselect input
+        multiSelectInput.addEventListener("blur", (event) => {
+            let optionsContainer = document.getElementById("multiselect-options-container");
+
+            if (!event.relatedTarget || !event.relatedTarget.className || (event.relatedTarget && event.relatedTarget.className && !event.relatedTarget.className.includes('option'))) {
+                optionsContainer.style.display = 'none';
+            }
+        });
+
+        // Add keypress event listeners to multiselect input
+        multiSelectInput.addEventListener("input", (event) => {
+            let value = event.target.value;
+
+            let attributesList = parseAttribute(cell);
+            let filteredValue = attributes.filter(x => x.toUpperCase().includes(value.toUpperCase()))
+            let optionTemplates = filteredValue.map(x => {
+                x = x.toUpperCase();
+                return getCustomOptionTemplate(x, attributesList.includes(x));
+            }).join(" ");
+
+            var container = document.getElementById("multiselect-options-container");
+
+            if (filteredValue.length > 0) {
+                container.innerHTML = optionTemplates;
+            }
+            else {
+                container.innerHTML = `<p>Can not find any value which contains '${value}'</p>`;
+            }
+
+            // Add change event listeners to select checkboxes
+            let selectCheckboxes = document.getElementsByClassName('select-option-checkbox');
+
+            for (let i = 0; i < selectCheckboxes.length; i++) {
+                selectCheckboxes[i].addEventListener("change", (event) => {
+                    let name = event.target.value;
+
+                    if (event.target.checked) {
+                        let tagContainer = document.getElementById("multiselect-tags-container");
+                        let tagTemplate = getCustomTagTemplate(name);
+                        tagContainer.innerHTML += tagTemplate;
+
+                        let attributesList = parseAttribute(cell);
+                        attributesList.push(name);
+
+                        let newAttr = cell.value.attributes.getNamedItem(attributesName.toLowerCase());
+                        newAttr.nodeValue = convertToString(attributesList);
+                        cell.value.attributes.setNamedItem(newAttr);
+
+                        // Add click event listeners to tag delete buttons
+                        let tagDeleteButtons = document.getElementsByClassName("multiselect-delete-button");
+                        for (let i = 0; i < tagDeleteButtons.length; i++) {
+                            tagDeleteButtons[i].addEventListener("click", (event) => {
+                                let name = event.target.id.split('-')[0];
+                                let attributesList = parseAttribute(cell);
+
+                                attributesList = attributesList.filter(x => x.toUpperCase() != name.toUpperCase());
+
+                                let newAttr = cell.value.attributes.getNamedItem(attributesName.toLowerCase());
+                                newAttr.nodeValue = convertToString(attributesList);
+                                cell.value.attributes.setNamedItem(newAttr);
+
+                                let containe = document.getElementById("multiselect-tags-container");
+                                let tagContainer = document.getElementById(`${name}-tag-container`);
+                                containe.removeChild(tagContainer);
+
+                                let checkBoxLocal = document.getElementById(`${name}-select-checkbox`);
+                                checkBoxLocal.checked = false;
+                            });
+                        }
+                    }
+                    else {
+                        let attributesList = parseAttribute(cell);
+
+                        attributesList = attributesList.filter(x => x.toUpperCase() != name.toUpperCase());
+
+                        let newAttr = cell.value.attributes.getNamedItem(attributesName.toLowerCase());
+                        newAttr.nodeValue = convertToString(attributesList);
+                        cell.value.attributes.setNamedItem(newAttr);
+
+                        let containe = document.getElementById("multiselect-tags-container");
+                        let tagContainer = document.getElementById(`${name}-tag-container`);
+                        containe.removeChild(tagContainer);
+                    }
+                });
+            }
+        });
+
+        // Add click event listeners to tag delete buttons
+        let tagDeleteButtons = document.getElementsByClassName("multiselect-delete-button");
+        for (let i = 0; i < tagDeleteButtons.length; i++) {
+            tagDeleteButtons[i].addEventListener("click", (event) => {
+                let name = event.target.id.split('-')[0];
+                let attributesList = parseAttribute(cell);
+
+                attributesList = attributesList.filter(x => x.toUpperCase() != name.toUpperCase());
+
+                let newAttr = cell.value.attributes.getNamedItem(attributesName.toLowerCase());
+                newAttr.nodeValue = convertToString(attributesList);
+                cell.value.attributes.setNamedItem(newAttr);
+
+                let containe = document.getElementById("multiselect-tags-container");
+                let tagContainer = document.getElementById(`${name}-tag-container`);
+                containe.removeChild(tagContainer);
+
+                let checkBoxLocal = document.getElementById(`${name}-select-checkbox`);
+                checkBoxLocal.checked = false;
+            });
+        }
+
+        // Add change event listeners to select checkboxes
+        let selectCheckboxes = document.getElementsByClassName('select-option-checkbox');
+
+        for (let i = 0; i < selectCheckboxes.length; i++) {
+            selectCheckboxes[i].addEventListener("change", (event) => {
+                let name = event.target.value;
+
+                if (event.target.checked) {
+                    let tagContainer = document.getElementById("multiselect-tags-container");
+                    let tagTemplate = getCustomTagTemplate(name);
+                    tagContainer.innerHTML += tagTemplate;
+
+                    let attributesList = parseAttribute(cell);
+                    attributesList.push(name);
+
+                    let newAttr = cell.value.attributes.getNamedItem(attributesName.toLowerCase());
+                    newAttr.nodeValue = convertToString(attributesList);
+                    cell.value.attributes.setNamedItem(newAttr);
+
+                    // Add click event listeners to tag delete buttons
+                    let tagDeleteButtons = document.getElementsByClassName("multiselect-delete-button");
+                    for (let i = 0; i < tagDeleteButtons.length; i++) {
+                        tagDeleteButtons[i].addEventListener("click", (event) => {
+                            let name = event.target.id.split('-')[0];
+                            let attributesList = parseAttribute(cell);
+
+                            attributesList = attributesList.filter(x => x.toUpperCase() != name.toUpperCase());
+
+                            let newAttr = cell.value.attributes.getNamedItem(attributesName.toLowerCase());
+                            newAttr.nodeValue = convertToString(attributesList);
+                            cell.value.attributes.setNamedItem(newAttr);
+
+                            let containe = document.getElementById("multiselect-tags-container");
+                            let tagContainer = document.getElementById(`${name}-tag-container`);
+                            containe.removeChild(tagContainer);
+
+                            let checkBoxLocal = document.getElementById(`${name}-select-checkbox`);
+                            checkBoxLocal.checked = false;
+                        });
+                    }
+                }
+                else {
+                    let attributesList = parseAttribute(cell);
+
+                    attributesList = attributesList.filter(x => x.toUpperCase() != name.toUpperCase());
+
+                    let newAttr = cell.value.attributes.getNamedItem(attributesName.toLowerCase());
+                    newAttr.nodeValue = convertToString(attributesList);
+                    cell.value.attributes.setNamedItem(newAttr);
+
+                    let containe = document.getElementById("multiselect-tags-container");
+                    let tagContainer = document.getElementById(`${name}-tag-container`);
+                    containe.removeChild(tagContainer);
+                }
+            });
+        }
     }
 
     /**
@@ -340,161 +712,15 @@ Draw.loadPlugin(function (ui) {
             highlight.highlight(graph.view.getState(cell));
 
             if (attrs != null) {
-                var ignored = ['label', 'tooltip', 'placeholders', attribute.toLowerCase()];
-                var label = graph.sanitizeHtml(graph.getLabel(cell));
-
-                // Add header (shape label)
-                if (label != null && label.length > 0) {
-                    div.innerHTML = '<h2>' + label + '</h2>';
-                }
-                else {
-                    div.innerHTML = '';
-                }
-
-                // Show value not stored in attributes
-                for (var i = 0; i < attrs.length; i++) {
-                    if (mxUtils.indexOf(ignored, attrs[i].nodeName) < 0 && attrs[i].nodeValue.length > 0) {
-                        let nodeName = attrs[i].nodeName.toUpperCase();
-                        if (allProperties.includes(nodeName)) {
-                            div.innerHTML += getPropertyTemplate(nodeName, attrs[i].nodeValue, numberInput.includes(nodeName) ? 'number' : 'text', defaultCheckedValue.includes(nodeName));
-                        }
-                        else {
-                            div.innerHTML +=
-                                `<div>
-                                    <p>
-                                        <strong>${graph.sanitizeHtml(nodeName)}</strong>: ${graph.sanitizeHtml(attrs[i].nodeValue)}
-                                    </p>
-                                </div>`;
-                        }
-                    }
-                }
-
-                // Show value stored in attributes
-                let attributesList = parseAttribute(cell);
-                let tagTemplates = attributesList.filter(x => !notAtAtAttribute.includes(x))
-                    .map(x => {
-                        x = x.toUpperCase();
-                        return getCustomTagTemplate(x);
-                    }).join(" ");
-
-                let optionTemplates = allProperties.filter(x => !notAtAtAttribute.includes(x))
-                    .map(x => {
-                        x = x.toUpperCase();
-                        return getCustomOptionTemplate(x, attributesList.includes(x));
-                    }).join(" ");
-
-                let selectTemplate = getMultiSelectWithSearchTemplate(tagTemplates, optionTemplates, attributesList.length === 0 ? 'Please select some attributes' : undefined);
-
-                div.innerHTML += selectTemplate;
-
-                //Add change event listeners to inputs
-                let inputs = document.getElementsByClassName('property-input');
-
-                for (let i = 0; i < inputs.length; i++) {
-                    inputs[i].addEventListener('change', (event) => {
-                        let name = event.target.id.split('-')[0].toLowerCase();
-
-                        let newAttr = cell.value.attributes.getNamedItem(name);
-                        newAttr.nodeValue = event.target.value;
-                        cell.value.attributes.setNamedItem(newAttr);
-
-                        this.value = event.target.value
-                    });
-                }
-
-                // Add click event listeners to delete buttons
-                let buttons = document.getElementsByClassName('property-delete');
-
-                for (let i = 0; i < buttons.length; i++) {
-                    buttons[i].addEventListener("click", (event) => {
-                        let name = event.target.id.split('-')[0];
-
-                        if (!notAtAtAttribute.includes(name)) {
-                            let newAttr = cell.value.attributes.getNamedItem(attribute.toLowerCase());
-                            let attributesList = parseAttribute(cell);
-
-                            attributesList = attributesList.filter(x => x.toUpperCase() != name.toUpperCase());
-
-                            newAttr.nodeValue = convertToString(attributesList);
-                            cell.value.attributes.setNamedItem(newAttr);
-                        }
-                        else {
-                            cell.value.attributes.removeNamedItem(name.toLowerCase());
-                        }
-
-                        let newMainContainerLocal = document.getElementById('main-container');
-                        let newPropertyContainer = document.getElementById(`${name}-container`);
-                        newMainContainerLocal.removeChild(newPropertyContainer);
-                    });
-                }
-
-                // Add focus event listeners to multiselect input
-                let multiSelectInput = document.getElementById('multiselect-search-input');
-                multiSelectInput.addEventListener("focus", () => {
-                    let tagContainer = document.getElementById("multiselect-options-container");
-                    tagContainer.style.display = 'block';
-                });
-
-                // Add blur event listeners to multiselect input
-                multiSelectInput.addEventListener("blur", (event) => {
-                    let tagContainer = document.getElementById("multiselect-options-container");
-
-                    if (!event.relatedTarget || !event.relatedTarget.className || (event.relatedTarget && event.relatedTarget.className && !event.relatedTarget.className.includes('option'))) {
-                        tagContainer.style.display = 'none';
-                    }
-                });
-
-                // Add change event listeners to multiselect input
-                multiSelectInput.addEventListener("change", () => {
-                    // TODO: Search
-                });
-
-                // Add click event listeners to tag delete buttons
-                let tagDeleteButtons = document.getElementsByClassName("multiselect-delete-button");
-                for (let i = 0; i < tagDeleteButtons.length; i++) {
-                    tagDeleteButtons[i].addEventListener("click", (event) => {
-                        let name = event.target.id.split('-')[0];
-                        let attributesList = parseAttribute(cell);
-
-                        attributesList = attributesList.filter(x => x.toUpperCase() != name.toUpperCase());
-
-                        let newAttr = cell.value.attributes.getNamedItem(attribute.toLowerCase());
-                        newAttr.nodeValue = convertToString(attributesList);
-                        cell.value.attributes.setNamedItem(newAttr);
-
-                        let containe = document.getElementById("multiselect-tags-container");
-                        let tagContainer = document.getElementById(`${name}-tag-container`);
-                        containe.removeChild(tagContainer);
-                    });
-                }
-
-                // Add change event listeners to select checkboxes
-                let selectCheckboxes = document.getElementsByClassName('select-option-checkbox');
-
-                for (let i = 0; i < selectCheckboxes.length; i++) {
-                    selectCheckboxes[i].addEventListener("change", (event) => {
-                        let name = event.target.value;
-
-                        let tagContainer = document.getElementById("multiselect-tags-container");
-                        let tagTemplate = getCustomTagTemplate(name);
-                        tagContainer.innerHTML = tagTemplate + tagContainer.innerHTML;
-
-                        let attributesList = parseAttribute(cell);
-                        attributesList.push(name);
-
-                        let newAttr = cell.value.attributes.getNamedItem(attribute.toLowerCase());
-                        newAttr.nodeValue = convertToString(attributesList);
-                        cell.value.attributes.setNamedItem(newAttr);
-                    });
-                }
+                getCommonView(cell);
             }
             else {
                 div.innerHTML = '<h2>' + (cell.value || '') + '</h2>';
 
                 // Show wizzard if cell.value.attributes is empty
-                let checkboxTemplates = allProperties.map(x => {
+                let checkboxTemplates = attributes.map(x => {
                     let name = x.toUpperCase();
-                    return getCheckBoxTemplate(name, defaultCheckedValue.includes(name));
+                    return getCheckBoxTemplate(name, defaultValues.includes(name));
                 });
 
                 let wizzardTemplate = getWizzardTemplate(checkboxTemplates.join(" "));
@@ -522,21 +748,22 @@ Draw.loadPlugin(function (ui) {
                             for (let item of checkboxes) {
                                 if (item.checked) {
                                     let nodeValue = item.value.toUpperCase();
-                                    if (notAtAtAttribute.includes(nodeValue)) {
-                                        let newAttr = document.createAttribute(nodeValue);
-                                        newAttr.textContent = numberInput.includes(nodeValue) ? 0 : nodeValue;
-                                        cell.value.attributes.setNamedItem(newAttr);
-                                    }
-                                    else {
-                                        nodeNames = [...nodeNames, nodeValue];
-                                    }
+                                    nodeNames = [...nodeNames, nodeValue];
                                 }
                             }
                         }
 
-                        let newAttr = document.createAttribute(attribute);
+                        for (let item of notAtAttributes) {
+                            let newAttr = document.createAttribute(item);
+                            newAttr.textContent = numberInput.includes(item) ? 0 : item;
+                            cell.value.attributes.setNamedItem(newAttr);
+                        }
+
+                        let newAttr = document.createAttribute(attributesName);
                         newAttr.textContent = convertToString(nodeNames);
                         cell.value.attributes.setNamedItem(newAttr);
+
+                        getCommonView(cell);
                     });
                 }
             }
@@ -546,19 +773,19 @@ Draw.loadPlugin(function (ui) {
     /**
      * Creates the textfield for the given property.
      */
-    const createTextField = (graph, form, cell, attribute) => {
-        var input = form.addText(attribute.nodeName + ':', attribute.nodeValue);
+    const createTextField = (graph, form, cell, attributesName) => {
+        var input = form.addText(attributesName.nodeName + ':', attributesName.nodeValue);
 
         var applyHandler = function () {
             var newValue = input.value || '';
-            var oldValue = cell.getAttribute(attribute.nodeName, '');
+            var oldValue = cell.getAttribute(attributesName.nodeName, '');
 
             if (newValue != oldValue) {
                 graph.getModel().beginUpdate();
 
                 try {
                     var edit = new mxCellAttributeChange(
-                        cell, attribute.nodeName,
+                        cell, attributesName.nodeName,
                         newValue);
                     graph.getModel().execute(edit);
                     graph.updateCellSize(cell);
