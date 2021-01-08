@@ -4,12 +4,9 @@
 
 const pleaseSelectShape = '<p><i>Select a shape.</i></p>';
 
-const attributesName = 'ATTRIBUTES';
+const attributesName = 'MODELATTRIBUTE';
 
 const attributes = [
-    'ELEMENT',
-    'PROCESS',
-    'DATAFLOW',
     // AUTHN
     'AUTHN.METHOD',
     'AUTHN.METHOD.OTP',
@@ -136,7 +133,7 @@ const getWizzardTemplate = (checkboxes) => {
     return (
         `<div id="wizzard-template" style="margin-bottom:5px;">
             <p style="margin-bottom:5px; text-align:center;"><strong>Please select value from attributes</strong></p>
-            <div style="margin-bottom:5px;">
+            <div style="margin-bottom:5px; max-height: 320px; overflow: scroll; overflow-x: hidden;">
                 ${checkboxes}
             </div>
             <div style="margin-bottom:5px; text-align:center;">
@@ -317,30 +314,81 @@ Draw.loadPlugin(function (ui) {
     var highlight = new mxCellHighlight(graph, '#00ff00', 8);
 
     /**
-     * Parse attributes.
+     * Get cell attribute by name
+     * @param {Object} cell
+     * @param {string} name - attribute name 
+     * @returns {Attr}
      */
-    const parseAttribute = (cell) => {
-        var attr = cell.value.attributes.getNamedItem(attributesName.toLowerCase());
+    const getAttributeByName = (cell, name) => {
+        for (let i = 0; i < cell.value.attributes.length; i++) {
+            if (cell.value.attributes[i].nodeName.toLowerCase() === name.toLowerCase()) {
+                return cell.value.attributes[i];
+            }
+        }
+    }
 
-        if (attr && attr.nodeValue !== "" && attr.nodeValue !== " ") {
-            return attr.nodeValue.toUpperCase().split(',');
+    /**
+     * Remove cell from attribute by name
+     * @param {Object} cell
+     * @param {string} name - attribute name 
+     */
+    const removeAttributeByName = (cell, name) => {
+        let attr = getAttributeByName(cell, name);
+
+        if (attr) {
+            cell.value.attributes.removeNamedItem(attr.nodeName);
+        }
+    }
+
+    /**
+     * Parse attributes.
+     * @param {Object} cell
+     * @returns {Array<string>}
+     */
+    const parseAttributes = (cell) => {
+        let attr = getAttributeByName(cell, attributesName.toLowerCase());
+
+        if (attr && attr.nodeValue !== "" && attr.nodeValue.trim() !== "") {
+            return attr.nodeValue.toUpperCase().replaceAll("_", ".").split(',');
         }
 
         return [];
     }
 
     /**
-    * Convert attributesName from list to string.
+    * Convert "attributes" from list to string.
+    * @param {Array<string>} attributesList - attributes list
+    * @returns {string}
     */
-    const convertToString = (list) => {
-        return list.join(",");
+    const convertToString = (attributesList) => {
+        return attributesList.join(",");
+    }
+
+    /**
+     * Updates the "attributes", if it exist and create if not.
+     * @param {Object} cell
+     * @param {Array<string>} attributesList - attributes list
+     */
+    const updateAttributes = (cell, attributesList) => {
+        let newAttr = getAttributeByName(cell, attributesName);
+
+        if (newAttr) {
+            newAttr.nodeValue = convertToString(attributesList);
+            cell.value.attributes.setNamedItem(newAttr);
+        }
+        else {
+            newAttr = document.createAttribute(attributesName);
+            newAttr.nodeValue = convertToString(attributesList);
+            cell.value.attributes.setNamedItem(newAttr);
+        }
     }
 
     /**
      * Return common view with events
+     * @param {Object} cell
      */
     const getCommonView = (cell) => {
-        var ignored = ['label', 'tooltip', 'placeholders', attributesName.toLowerCase()];
+        var ignored = ['label', 'tooltip', 'placeholders'];
         var label = graph.sanitizeHtml(graph.getLabel(cell));
 
         // Add header (shape label)
@@ -352,7 +400,7 @@ Draw.loadPlugin(function (ui) {
         }
 
         // Show value stored in attributes
-        let attributesList = parseAttribute(cell);
+        let attributesList = parseAttributes(cell);
         let tagTemplates = attributesList.filter(x => !notAtAttributes.includes(x))
             .map(x => {
                 x = x.toUpperCase();
@@ -379,7 +427,7 @@ Draw.loadPlugin(function (ui) {
         let attrs = cell.value.attributes;
 
         for (var i = 0; i < attrs.length; i++) {
-            if (mxUtils.indexOf(ignored, attrs[i].nodeName) < 0 && attrs[i].nodeValue.length > 0) {
+            if (mxUtils.indexOf(ignored, attrs[i].nodeName) < 0 && attrs[i].nodeValue.length > 0 && attrs[i].nodeName.toLowerCase() !== attributesName.toLowerCase()) {
                 let nodeName = attrs[i].nodeName.toUpperCase();
                 propetiesContainer.innerHTML += getPropertyTemplate(nodeName, attrs[i].nodeValue, numberInput.includes(nodeName) ? 'number' : 'text', defaultValues.includes(nodeName));
             }
@@ -412,9 +460,15 @@ Draw.loadPlugin(function (ui) {
                 cell.value.attributes.setNamedItem(newAttr);
 
                 //Add new property node to DOM
-                let newTemplate = getPropertyTemplate(newPropertyName.toUpperCase(), newPropertyValue, "text", false);
                 let container = document.getElementById('other-properties-container');
-                container.innerHTML += newTemplate;
+                container.innerHTML = "";
+                let attrs = cell.value.attributes;
+                for (var i = 0; i < attrs.length; i++) {
+                    if (mxUtils.indexOf(ignored, attrs[i].nodeName) < 0 && attrs[i].nodeValue.length > 0 && attrs[i].nodeName.toLowerCase() !== attributesName.toLowerCase()) {
+                        let nodeName = attrs[i].nodeName.toUpperCase();
+                        container.innerHTML += getPropertyTemplate(nodeName, attrs[i].nodeValue, numberInput.includes(nodeName) ? 'number' : 'text', defaultValues.includes(nodeName));
+                    }
+                }
 
                 // Cleare inputs
                 let localNameInput = document.getElementById("custom-name-input");
@@ -426,45 +480,55 @@ Draw.loadPlugin(function (ui) {
                     localValueInput.value = "";
                 }
 
-                //Add change event listeners to input
-                let input = document.getElementById(`${newPropertyName.toUpperCase()}-input`);
-                input.addEventListener('change', (event) => {
-                    let name = event.target.id.split('-')[0].toLowerCase();
+                //Add change event listeners to inputs
+                let inputs = document.getElementsByClassName('property-input');
 
-                    let newAttr = cell.value.attributes.getNamedItem(name) || cell.value.attributes.getNamedItem(name.toUpperCase());
-                    newAttr.nodeValue = event.target.value;
-                    cell.value.attributes.setNamedItem(newAttr);
+                for (let i = 0; i < inputs.length; i++) {
+                    inputs[i].addEventListener('change', (event) => {
+                        let name = event.target.id.split('-')[0].toLowerCase();
 
-                    this.value = event.target.value
-                });
-
-                // Add click event listeners to delete button
-                let button = document.getElementById(`${newPropertyName.toUpperCase()}-button`);
-                button.addEventListener("click", (event) => {
-                    let name = event.target.id.split('-')[0];
-
-                    if (!notAtAttributes.includes(name)) {
-                        let newAttr = cell.value.attributes.getNamedItem(attributesName.toLowerCase());
-                        let attributesList = parseAttribute(cell);
-
-                        if (attributesList.includes(name)) {
-                            attributesList = attributesList.filter(x => x.toUpperCase() != name.toUpperCase());
-
-                            newAttr.nodeValue = convertToString(attributesList);
+                        let newAttr = getAttributeByName(cell, name);
+                        if (newAttr) {
+                            newAttr.nodeValue = event.target.value;
                             cell.value.attributes.setNamedItem(newAttr);
                         }
                         else {
-                            cell.value.attributes.removeNamedItem(name.toLowerCase());
+                            alert(`Can not find attribute with name ${name}`);
                         }
-                    }
-                    else {
-                        cell.value.attributes.removeNamedItem(name.toLowerCase());
-                    }
 
-                    let otherContainerLocal = document.getElementById('other-properties-container');
-                    let newPropertyContainer = document.getElementById(`${name}-container`);
-                    otherContainerLocal.removeChild(newPropertyContainer);
-                });
+                        this.value = event.target.value
+                    });
+                }
+
+                // Add click event listeners to delete buttons
+                let buttons = document.getElementsByClassName('property-delete');
+
+                for (let i = 0; i < buttons.length; i++) {
+                    buttons[i].addEventListener("click", (event) => {
+                        let name = event.target.id.split('-')[0];
+
+                        if (!notAtAttributes.includes(name)) {
+                            let attributesList = parseAttributes(cell);
+
+                            if (attributesList.includes(name)) {
+                                attributesList = attributesList.filter(x => x.toUpperCase() != name.toUpperCase());
+
+                                // Update "attributes" attribute
+                                updateAttributes(cell, attributesList);
+                            }
+                            else {
+                                removeAttributeByName(cell, name);
+                            }
+                        }
+                        else {
+                            removeAttributeByName(cell, name);
+                        }
+
+                        let otherContainerLocal = document.getElementById('other-properties-container');
+                        let newPropertyContainer = document.getElementById(`${name}-container`);
+                        otherContainerLocal.removeChild(newPropertyContainer);
+                    });
+                }
             }
             else {
                 let localNameInput = document.getElementById("custom-name-input");
@@ -481,9 +545,14 @@ Draw.loadPlugin(function (ui) {
             inputs[i].addEventListener('change', (event) => {
                 let name = event.target.id.split('-')[0].toLowerCase();
 
-                let newAttr = cell.value.attributes.getNamedItem(name) || cell.value.attributes.getNamedItem(name.toUpperCase());
-                newAttr.nodeValue = event.target.value;
-                cell.value.attributes.setNamedItem(newAttr);
+                let newAttr = getAttributeByName(cell, name);
+                if (newAttr) {
+                    newAttr.nodeValue = event.target.value;
+                    cell.value.attributes.setNamedItem(newAttr);
+                }
+                else {
+                    alert(`Can not find attribute with name ${name}`);
+                }
 
                 this.value = event.target.value
             });
@@ -497,21 +566,20 @@ Draw.loadPlugin(function (ui) {
                 let name = event.target.id.split('-')[0];
 
                 if (!notAtAttributes.includes(name)) {
-                    let newAttr = cell.value.attributes.getNamedItem(attributesName.toLowerCase());
-                    let attributesList = parseAttribute(cell);
+                    let attributesList = parseAttributes(cell);
 
                     if (attributesList.includes(name)) {
                         attributesList = attributesList.filter(x => x.toUpperCase() != name.toUpperCase());
 
-                        newAttr.nodeValue = convertToString(attributesList);
-                        cell.value.attributes.setNamedItem(newAttr);
+                        // Update "attributes" attribute
+                        updateAttributes(cell, attributesList);
                     }
                     else {
-                        cell.value.attributes.removeNamedItem(name.toLowerCase());
+                        removeAttributeByName(cell, name);
                     }
                 }
                 else {
-                    cell.value.attributes.removeNamedItem(name.toLowerCase());
+                    removeAttributeByName(cell, name);
                 }
 
                 let otherContainerLocal = document.getElementById('other-properties-container');
@@ -536,11 +604,31 @@ Draw.loadPlugin(function (ui) {
             }
         });
 
+        // Add focus event listeners to multiselect option checkboxes
+        let selectOptionCheckboxes = document.getElementsByClassName('select-option-checkbox');
+        for (let i = 0; i < selectOptionCheckboxes.length; i++) {
+            selectOptionCheckboxes[i].addEventListener("focus", () => {
+                let optionsContainer = document.getElementById("multiselect-options-container");
+                optionsContainer.style.display = 'block';
+            });
+        }
+
+        // Add blur event listeners to multiselect option checkboxes
+        for (let i = 0; i < selectOptionCheckboxes.length; i++) {
+            selectOptionCheckboxes[i].addEventListener("blur", (event) => {
+                let optionsContainer = document.getElementById("multiselect-options-container");
+
+                if (!event.relatedTarget || !event.relatedTarget.className || (event.relatedTarget && event.relatedTarget.className && !event.relatedTarget.className.includes('option'))) {
+                    optionsContainer.style.display = 'none';
+                }
+            });
+        }
+
         // Add keypress event listeners to multiselect input
         multiSelectInput.addEventListener("input", (event) => {
             let value = event.target.value;
 
-            let attributesList = parseAttribute(cell);
+            let attributesList = parseAttributes(cell);
             let filteredValue = attributes.filter(x => x.toUpperCase().includes(value.toUpperCase()))
             let optionTemplates = filteredValue.map(x => {
                 x = x.toUpperCase();
@@ -568,25 +656,23 @@ Draw.loadPlugin(function (ui) {
                         let tagTemplate = getCustomTagTemplate(name);
                         tagContainer.innerHTML += tagTemplate;
 
-                        let attributesList = parseAttribute(cell);
+                        let attributesList = parseAttributes(cell);
                         attributesList.push(name);
 
-                        let newAttr = cell.value.attributes.getNamedItem(attributesName.toLowerCase());
-                        newAttr.nodeValue = convertToString(attributesList);
-                        cell.value.attributes.setNamedItem(newAttr);
+                        // Update "attributes" attribute
+                        updateAttributes(cell, attributesList);
 
                         // Add click event listeners to tag delete buttons
                         let tagDeleteButtons = document.getElementsByClassName("multiselect-delete-button");
                         for (let i = 0; i < tagDeleteButtons.length; i++) {
                             tagDeleteButtons[i].addEventListener("click", (event) => {
                                 let name = event.target.id.split('-')[0];
-                                let attributesList = parseAttribute(cell);
+                                let attributesList = parseAttributes(cell);
 
                                 attributesList = attributesList.filter(x => x.toUpperCase() != name.toUpperCase());
 
-                                let newAttr = cell.value.attributes.getNamedItem(attributesName.toLowerCase());
-                                newAttr.nodeValue = convertToString(attributesList);
-                                cell.value.attributes.setNamedItem(newAttr);
+                                // Update "attributes" attribute
+                                updateAttributes(cell, attributesList);
 
                                 let containe = document.getElementById("multiselect-tags-container");
                                 let tagContainer = document.getElementById(`${name}-tag-container`);
@@ -598,13 +684,11 @@ Draw.loadPlugin(function (ui) {
                         }
                     }
                     else {
-                        let attributesList = parseAttribute(cell);
-
+                        let attributesList = parseAttributes(cell);
                         attributesList = attributesList.filter(x => x.toUpperCase() != name.toUpperCase());
 
-                        let newAttr = cell.value.attributes.getNamedItem(attributesName.toLowerCase());
-                        newAttr.nodeValue = convertToString(attributesList);
-                        cell.value.attributes.setNamedItem(newAttr);
+                        // Update "attributes" attribute
+                        updateAttributes(cell, attributesList);
 
                         let containe = document.getElementById("multiselect-tags-container");
                         let tagContainer = document.getElementById(`${name}-tag-container`);
@@ -619,13 +703,12 @@ Draw.loadPlugin(function (ui) {
         for (let i = 0; i < tagDeleteButtons.length; i++) {
             tagDeleteButtons[i].addEventListener("click", (event) => {
                 let name = event.target.id.split('-')[0];
-                let attributesList = parseAttribute(cell);
+                let attributesList = parseAttributes(cell);
 
                 attributesList = attributesList.filter(x => x.toUpperCase() != name.toUpperCase());
 
-                let newAttr = cell.value.attributes.getNamedItem(attributesName.toLowerCase());
-                newAttr.nodeValue = convertToString(attributesList);
-                cell.value.attributes.setNamedItem(newAttr);
+                // Update "attributes" attribute
+                updateAttributes(cell, attributesList);
 
                 let containe = document.getElementById("multiselect-tags-container");
                 let tagContainer = document.getElementById(`${name}-tag-container`);
@@ -648,25 +731,23 @@ Draw.loadPlugin(function (ui) {
                     let tagTemplate = getCustomTagTemplate(name);
                     tagContainer.innerHTML += tagTemplate;
 
-                    let attributesList = parseAttribute(cell);
+                    let attributesList = parseAttributes(cell);
                     attributesList.push(name);
 
-                    let newAttr = cell.value.attributes.getNamedItem(attributesName.toLowerCase());
-                    newAttr.nodeValue = convertToString(attributesList);
-                    cell.value.attributes.setNamedItem(newAttr);
+                    // Update "attributes" attribute
+                    updateAttributes(cell, attributesList);
 
                     // Add click event listeners to tag delete buttons
                     let tagDeleteButtons = document.getElementsByClassName("multiselect-delete-button");
                     for (let i = 0; i < tagDeleteButtons.length; i++) {
                         tagDeleteButtons[i].addEventListener("click", (event) => {
                             let name = event.target.id.split('-')[0];
-                            let attributesList = parseAttribute(cell);
+                            let attributesList = parseAttributes(cell);
 
                             attributesList = attributesList.filter(x => x.toUpperCase() != name.toUpperCase());
 
-                            let newAttr = cell.value.attributes.getNamedItem(attributesName.toLowerCase());
-                            newAttr.nodeValue = convertToString(attributesList);
-                            cell.value.attributes.setNamedItem(newAttr);
+                            // Update "attributes" attribute
+                            updateAttributes(cell, attributesList);
 
                             let containe = document.getElementById("multiselect-tags-container");
                             let tagContainer = document.getElementById(`${name}-tag-container`);
@@ -678,13 +759,12 @@ Draw.loadPlugin(function (ui) {
                     }
                 }
                 else {
-                    let attributesList = parseAttribute(cell);
+                    let attributesList = parseAttributes(cell);
 
                     attributesList = attributesList.filter(x => x.toUpperCase() != name.toUpperCase());
 
-                    let newAttr = cell.value.attributes.getNamedItem(attributesName.toLowerCase());
-                    newAttr.nodeValue = convertToString(attributesList);
-                    cell.value.attributes.setNamedItem(newAttr);
+                    // Update "attributes" attribute
+                    updateAttributes(cell, attributesList);
 
                     let containe = document.getElementById("multiselect-tags-container");
                     let tagContainer = document.getElementById(`${name}-tag-container`);
@@ -773,19 +853,19 @@ Draw.loadPlugin(function (ui) {
     /**
      * Creates the textfield for the given property.
      */
-    const createTextField = (graph, form, cell, attributesName) => {
-        var input = form.addText(attributesName.nodeName + ':', attributesName.nodeValue);
+    const createTextField = (graph, form, cell, attribute) => {
+        var input = form.addText(attribute.nodeName + ':', attribute.nodeValue);
 
         var applyHandler = function () {
             var newValue = input.value || '';
-            var oldValue = cell.getAttribute(attributesName.nodeName, '');
+            var oldValue = cell.getAttribute(attribute.nodeName, '');
 
             if (newValue != oldValue) {
                 graph.getModel().beginUpdate();
 
                 try {
                     var edit = new mxCellAttributeChange(
-                        cell, attributesName.nodeName,
+                        cell, attribute.nodeName,
                         newValue);
                     graph.getModel().execute(edit);
                     graph.updateCellSize(cell);
